@@ -26,11 +26,15 @@ const UserSchema = new mongoose.Schema(
       minLength: [8, "Password must be atleast 8 characters long"],
       select: false,
     },
-    mentionTag: {
+    username: {
       type: String,
-      required: "Mention tag is required",
+      required: "Username is a required feild",
       unique: true,
       index: true,
+      validate: [
+        (username) => !username.includes(" "),
+        "Provide a valid username",
+      ],
     },
     role: {
       type: String,
