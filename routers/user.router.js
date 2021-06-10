@@ -1,14 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-import { User } from "../models/user.model";
+const { User } = require("../models/user.model");
 
 router.route("/login").post(async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
+    
     if (!user) {
       return res.json({
         success: false,
@@ -30,11 +32,12 @@ router.route("/login").post(async (req, res) => {
       res.json({
         success: true,
         message: "Login success",
-        user: {
-          id: user._id,
+        user:{
+          _id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role,
+          username: user.username,
+          role: user.role
         },
         token,
       });
@@ -58,6 +61,14 @@ router.route("/signup").post(async (req, res) => {
         .status(400)
         .json({ success: false, message: "Data not formatted properly" });
     }
+
+    let username = user.username;
+    let name = user.name;
+    if (!username) {
+      username =
+        name.split(" ").join("") + crypto.randomBytes(3).toString("hex");
+      user.username = username;
+    }
     const NewUser = new User(user);
 
     const salt = await bcrypt.genSalt(10);
@@ -73,10 +84,12 @@ router.route("/signup").post(async (req, res) => {
 
     res.json({
       success: true,
-      user: {
-        id: savedUser._id,
+      user:{
+        _id: savedUser._id,
+        name: savedUser.name,
         email: savedUser.email,
-        role: savedUser.role,
+        username: savedUser.username,
+        role: savedUser.role
       },
       token,
     });
@@ -88,3 +101,5 @@ router.route("/signup").post(async (req, res) => {
     });
   }
 });
+
+module.exports = router;
