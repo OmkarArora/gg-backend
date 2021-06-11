@@ -10,9 +10,9 @@ router.route("/login").post(async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
-    
+
     if (!user) {
-      return res.json({
+      return res.status(401).json({
         success: false,
         message: "Email not found",
         errorMessage: "Email not found",
@@ -32,17 +32,17 @@ router.route("/login").post(async (req, res) => {
       res.json({
         success: true,
         message: "Login success",
-        user:{
+        user: {
           _id: user._id,
           name: user.name,
           email: user.email,
           username: user.username,
-          role: user.role
+          role: user.role,
         },
         token,
       });
     } else {
-      res.json({ success: false, message: "Invalid password" });
+      res.status(401).json({ success: false, message: "Invalid password", errorMessage: "Invalid password" });
     }
   } catch (error) {
     res.status(400).json({
@@ -60,6 +60,17 @@ router.route("/signup").post(async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Data not formatted properly" });
+    }
+
+    const userInDB = await User.findOne({ email: user.email });
+    if (userInDB) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Email already registered",
+          errorMessage: "Email already registered",
+        });
     }
 
     let username = user.username;
@@ -84,12 +95,12 @@ router.route("/signup").post(async (req, res) => {
 
     res.json({
       success: true,
-      user:{
+      user: {
         _id: savedUser._id,
         name: savedUser.name,
         email: savedUser.email,
         username: savedUser.username,
-        role: savedUser.role
+        role: savedUser.role,
       },
       token,
     });
