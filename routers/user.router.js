@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { extend } = require("lodash");
 
 const { User } = require("../models/user.model");
 
@@ -42,7 +43,13 @@ router.route("/login").post(async (req, res) => {
         token,
       });
     } else {
-      res.status(401).json({ success: false, message: "Invalid password", errorMessage: "Invalid password" });
+      res
+        .status(401)
+        .json({
+          success: false,
+          message: "Invalid password",
+          errorMessage: "Invalid password",
+        });
     }
   } catch (error) {
     res.status(400).json({
@@ -64,13 +71,11 @@ router.route("/signup").post(async (req, res) => {
 
     const userInDB = await User.findOne({ email: user.email });
     if (userInDB) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Email already registered",
-          errorMessage: "Email already registered",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Email already registered",
+        errorMessage: "Email already registered",
+      });
     }
 
     let username = user.username;
@@ -112,5 +117,58 @@ router.route("/signup").post(async (req, res) => {
     });
   }
 });
+
+router.param("userId", async (req, res, next, userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Error getting user" });
+    }
+    req.user = user;
+    next();
+  } catch (error) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Error while retreiving the user" });
+  }
+});
+
+router
+  .route("/:userId")
+  .get(async (req, res) => {
+    const { user } = req;
+    res.json({
+      success: true,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        id: user._id,
+      },
+    });
+  })
+  .post(async (req, res) => {
+    const userUpdates = req.body;
+    let { user } = req;
+    user = extend(user, userUpdates);
+    user = await user.save();
+    user.__v = undefined;
+    user.password = undefined;
+    res.json({ success: true, user });
+  })
+  .delete(async (req, res) => {
+    let { user } = req;
+    user = await user.remove();
+    user.password = undefined;
+    user.__v = undefined;
+    res.json({
+      success: true,
+      message: "User deleted successfully",
+      user,
+      deleted: true,
+    });
+  });
 
 module.exports = router;

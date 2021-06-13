@@ -15,8 +15,14 @@ const PostSchema = new mongoose.Schema(
     ],
     content: {
       text: String,
-      images: [mongoose.SchemaTypes.Url],
+      media: [mongoose.SchemaTypes.Url],
     },
+    replies: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post"
+      }
+    ]
   },
   {
     timestamps: true,
