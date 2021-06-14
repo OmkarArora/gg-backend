@@ -4,7 +4,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const { errorHandler } = require("./middleware/errorHandler");
-const {requestInfo} = require("./middleware/requestInfo")
+const { requestInfo } = require("./middleware/requestInfo");
 const { initDBConnection } = require("./db.connect");
 
 const app = express();
@@ -14,8 +14,11 @@ app.use(requestInfo);
 
 initDBConnection();
 
-const userRouter = require("./routers/user.router");
-app.use("/users", userRouter);
+const usersRouter = require("./routers/users.router");
+app.use("/users", usersRouter);
+
+const postsRouter = require("./routers/posts.router");
+app.use("/posts", postsRouter);
 
 app.get("/", (req, res) => {
   res.send("Connected to GG server");
