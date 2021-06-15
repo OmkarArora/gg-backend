@@ -30,26 +30,22 @@ router.route("/login").post(async (req, res) => {
         },
         process.env.JWT_SECRET
       );
+
+      user.password = undefined;
+      user.__v = undefined;
+
       res.json({
         success: true,
         message: "Login success",
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          username: user.username,
-          role: user.role,
-        },
+        user,
         token,
       });
     } else {
-      res
-        .status(401)
-        .json({
-          success: false,
-          message: "Invalid password",
-          errorMessage: "Invalid password",
-        });
+      res.status(401).json({
+        success: false,
+        message: "Invalid password",
+        errorMessage: "Invalid password",
+      });
     }
   } catch (error) {
     res.status(400).json({
@@ -62,7 +58,7 @@ router.route("/login").post(async (req, res) => {
 
 router.route("/signup").post(async (req, res) => {
   try {
-    const user = req.body;
+    let user = req.body;
     if (!(user.email && user.password && user.name)) {
       return res
         .status(400)
@@ -98,15 +94,13 @@ router.route("/signup").post(async (req, res) => {
       process.env.JWT_SECRET
     );
 
+    user = savedUser;
+    user.password = undefined;
+    user.__v = undefined;
+
     res.json({
       success: true,
-      user: {
-        _id: savedUser._id,
-        name: savedUser.name,
-        email: savedUser.email,
-        username: savedUser.username,
-        role: savedUser.role,
-      },
+      user,
       token,
     });
   } catch (error) {

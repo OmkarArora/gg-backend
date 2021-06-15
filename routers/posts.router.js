@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { authVerify } = require("../middleware/authVerify");
 const { Post } = require("../models/post.model");
+const { User } = require("../models/user.model");
 
 router.use(authVerify);
 
@@ -11,7 +12,30 @@ router.route("/").post(async (req, res) => {
     const NewPost = new Post(post);
     const savedPost = await NewPost.save();
     savedPost.__v = undefined;
-    res.json({ success: true, post: savedPost });
+
+    // Save post in user
+    let user = req.user;
+    let userInDB = await User.findById(user.userId);
+    userInDB.posts.unshift(savedPost._id);
+    await userInDB.save();
+
+    Post.findById(savedPost._id)
+      .populate({
+        path: "author",
+        select: { _id: 1, username: 1, name: 1, profileImage: 1 },
+      })
+      .exec((error, post) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving post",
+            errorMessage: error.message,
+          });
+        }
+        post.__v = undefined;
+        return res.json({ success: true, post });
+      });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -59,7 +83,7 @@ router
     try {
       let { post } = req;
       post = await post.remove();
-	  post.__v = undefined;
+      post.__v = undefined;
       res.json({
         success: true,
         message: "Post deleted successfully",
