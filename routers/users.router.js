@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const { extend } = require("lodash");
 
 const { User } = require("../models/user.model");
+const { authVerify } = require("../middleware/authVerify");
 
 router.route("/login").post(async (req, res) => {
   const { email, password } = req.body;
@@ -131,17 +132,31 @@ router.param("userId", async (req, res, next, userId) => {
 
 router
   .route("/:userId")
-  .get(async (req, res) => {
-    const { user } = req;
-    res.json({
-      success: true,
-      user: {
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        id: user._id,
-      },
-    });
+  .get((req, res) => {
+    try {
+      const { user } = req;
+      User.findById(user._id)
+        .populate("posts")
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving user",
+              errorMessage: error.message,
+            });
+          }
+          user.__v = undefined;
+          user.password = undefined;
+          return res.json({ success: true, user });
+        });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error while retreiving user",
+        errorMessage: error.message,
+      });
+    }
   })
   .post(async (req, res) => {
     const userUpdates = req.body;
@@ -164,5 +179,42 @@ router
       deleted: true,
     });
   });
+
+router.use(authVerify);
+router.route("/feed").get(async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    const feed = [];
+    if (user.posts.length > 0) feed.push(user.posts[0]);
+    if (user.following && user.following.length > 0) {
+      user.following.forEach((followingUserId) => {
+        let followingUser = await User.findById(followingUserId);
+        if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
+      });
+    }
+    user.feed = feed;
+    await user.save();
+    User.findById(user._id)
+      .populate("feed")
+      .exec((error, user) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving feed",
+            errorMessage: error.message,
+          });
+        }
+        return res.json({ success: true, feed: user.feed });
+      });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error while retreiving feed",
+      errorMessage: error.message,
+    });
+  }
+});
 
 module.exports = router;
