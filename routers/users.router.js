@@ -32,15 +32,30 @@ router.route("/login").post(async (req, res) => {
         process.env.JWT_SECRET
       );
 
-      user.password = undefined;
-      user.__v = undefined;
-
-      res.json({
-        success: true,
-        message: "Login success",
-        user,
-        token,
-      });
+      User.findById(user._id)
+        .populate({
+          path: "posts",
+          populate: {
+            path: "author",
+            select: {
+              _id: 1,
+              profileImage: 1,
+            },
+          },
+        })
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving user",
+              errorMessage: error.message,
+            });
+          }
+          user.password = undefined;
+          user.__v = undefined;
+          return res.json({ success: true, user });
+        });
     } else {
       res.status(401).json({
         success: false,
@@ -180,6 +195,33 @@ router
     });
   });
 
+router.route("/username").post(async (req, res) => {
+  try {
+    const { username } = req.body;
+    User.findOne({ username })
+      .populate("posts")
+      .exec((error, user) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving user",
+            errorMessage: error.message,
+          });
+        }
+        user.__v = undefined;
+        user.password = undefined;
+        return res.json({ success: true, user });
+      });
+  } catch (error) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+      errorMessage: error.message,
+    });
+  }
+});
+
 router.use(authVerify);
 router.route("/feed").get(async (req, res) => {
   try {
@@ -189,8 +231,10 @@ router.route("/feed").get(async (req, res) => {
     if (user.posts.length > 0) feed.push(user.posts[0]);
     if (user.following && user.following.length > 0) {
       user.following.forEach((followingUserId) => {
-        let followingUser = await User.findById(followingUserId);
-        if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
+        (async () => {
+          let followingUser = await User.findById(followingUserId);
+          if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
+        })();
       });
     }
     user.feed = feed;
