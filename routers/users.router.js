@@ -8,6 +8,19 @@ const { extend } = require("lodash");
 const { User } = require("../models/user.model");
 const { authVerify } = require("../middleware/authVerify");
 
+router.route("/").get(async (req, res) => {
+  try {
+    const users = await User.find({}).select({ password: 0, __v: 0 });
+    res.json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Unable to get users",
+      errorMessage: error.message,
+    });
+  }
+});
+
 router.route("/login").post(async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -54,7 +67,7 @@ router.route("/login").post(async (req, res) => {
           }
           user.password = undefined;
           user.__v = undefined;
-          return res.json({ success: true, user });
+          return res.json({ success: true, user, token });
         });
     } else {
       res.status(401).json({
@@ -128,20 +141,169 @@ router.route("/signup").post(async (req, res) => {
   }
 });
 
+router.route("/username").post(async (req, res) => {
+  try {
+    const { username } = req.body;
+    console.log({ username });
+    User.findOne({ username })
+      .populate("posts")
+      .exec((error, user) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving user",
+            errorMessage: error.message,
+          });
+        }
+        if (user) {
+          user.__v = undefined;
+          user.password = undefined;
+          return res.json({ success: true, user });
+        } else {
+          res.status(404).json({
+            success: false,
+            message: "User not found",
+            errorMessage: "User not found",
+          });
+        }
+      });
+  } catch (error) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+      errorMessage: error.message,
+    });
+  }
+});
+
+router
+  .use(authVerify)
+  .route("/follow")
+  .post(async (req, res) => {
+    try {
+      const { userId: followUserId } = req.body;
+      const doesUserExist = await User.exists({ _id: followUserId });
+      if (!doesUserExist) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+          errorMessage: "User not found",
+        });
+      }
+      const userId = req.user.userId;
+      const user = await User.findById(userId);
+      const following = user.following.map((item) => String(item));
+      if (following.length >= 0 && !following.includes(followUserId)) {
+        following.push(followUserId);
+        user.following = following;
+        await user.save();
+      }
+      user.__v = undefined;
+      user.password = undefined;
+      return res.json({ success: true, user });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Something went wrong",
+        errorMessage: error.message,
+      });
+    }
+  });
+
+router
+  .use(authVerify)
+  .route("/unfollow")
+  .post(async (req, res) => {
+    try {
+      const { userId: unfollowUserId } = req.body;
+      const doesUserExist = await User.exists({ _id: unfollowUserId });
+      if (!doesUserExist) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+          errorMessage: "User not found",
+        });
+      }
+      const userId = req.user.userId;
+      const user = await User.findById(userId);
+      const following = user.following.filter(
+        (item) => String(item) !== unfollowUserId
+      );
+      user.following = following;
+      await user.save();
+      user.__v = undefined;
+      user.password = undefined;
+      return res.json({ success: true, user });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Something went wrong",
+        errorMessage: error.message,
+      });
+    }
+  });
+
+router
+  .use(authVerify)
+  .route("/feed")
+  .get(async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      const user = await User.findById(userId);
+      const feed = [];
+      if (user.posts.length > 0) feed.push(user.posts[0]);
+      if (user.following && user.following.length > 0) {
+        user.following.forEach((followingUserId) => {
+          (async () => {
+            let followingUser = await User.findById(followingUserId);
+            if (followingUser.posts.length > 0)
+              feed.push(followingUser.posts[0]);
+          })();
+        });
+      }
+      user.feed = feed;
+      await user.save();
+      User.findById(user._id)
+        .populate("feed")
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving feed",
+              errorMessage: error.message,
+            });
+          }
+          return res.json({ success: true, feed: user.feed });
+        });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error while retreiving feed",
+        errorMessage: error.message,
+      });
+    }
+  });
+
 router.param("userId", async (req, res, next, userId) => {
   try {
     const user = await User.findById(userId);
     if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Error getting user" });
+      return res.status(400).json({
+        success: false,
+        message: "Error while retreiving the user",
+        errorMessage: "Error while retreiving the user",
+      });
     }
     req.user = user;
     next();
   } catch (error) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Error while retreiving the user" });
+    return res.status(400).json({
+      success: false,
+      message: "Error while retreiving the user",
+      errorMessage: error.message,
+    });
   }
 });
 
@@ -194,71 +356,5 @@ router
       deleted: true,
     });
   });
-
-router.route("/username").post(async (req, res) => {
-  try {
-    const { username } = req.body;
-    User.findOne({ username })
-      .populate("posts")
-      .exec((error, user) => {
-        if (error) {
-          console.error(error);
-          return res.status(500).json({
-            success: false,
-            message: "Error while retreiving user",
-            errorMessage: error.message,
-          });
-        }
-        user.__v = undefined;
-        user.password = undefined;
-        return res.json({ success: true, user });
-      });
-  } catch (error) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found",
-      errorMessage: error.message,
-    });
-  }
-});
-
-router.use(authVerify);
-router.route("/feed").get(async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const user = await User.findById(userId);
-    const feed = [];
-    if (user.posts.length > 0) feed.push(user.posts[0]);
-    if (user.following && user.following.length > 0) {
-      user.following.forEach((followingUserId) => {
-        (async () => {
-          let followingUser = await User.findById(followingUserId);
-          if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
-        })();
-      });
-    }
-    user.feed = feed;
-    await user.save();
-    User.findById(user._id)
-      .populate("feed")
-      .exec((error, user) => {
-        if (error) {
-          console.error(error);
-          return res.status(500).json({
-            success: false,
-            message: "Error while retreiving feed",
-            errorMessage: error.message,
-          });
-        }
-        return res.json({ success: true, feed: user.feed });
-      });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error while retreiving feed",
-      errorMessage: error.message,
-    });
-  }
-});
 
 module.exports = router;
