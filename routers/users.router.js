@@ -199,9 +199,17 @@ router
         following.push(followUserId);
         user.following = following;
         await user.save();
+
+        // Update followers for followUserId
+        const followedUser = await User.findById(followUserId);
+        if (!followedUser.followers.includes(user._id)) {
+          followedUser.followers = [...followedUser.followers, user._id];
+          await followedUser.save();
+        }
       }
       user.__v = undefined;
       user.password = undefined;
+
       return res.json({ success: true, user });
     } catch (error) {
       res.status(500).json({
@@ -233,6 +241,14 @@ router
       );
       user.following = following;
       await user.save();
+
+      // Update followers for followUserId
+      const followedUser = await User.findById(unfollowUserId);
+      const followers = followedUser.followers.filter((item) => String(item) !== String(user._id));
+      followedUser.followers = followers;
+      console.log(followedUser.followers);
+      await followedUser.save();
+
       user.__v = undefined;
       user.password = undefined;
       return res.json({ success: true, user });
