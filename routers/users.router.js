@@ -7,6 +7,7 @@ const { extend } = require("lodash");
 
 const { User } = require("../models/user.model");
 const { authVerify } = require("../middleware/authVerify");
+const { Post } = require("../models/post.model");
 
 router.route("/").get(async (req, res) => {
   try {
@@ -252,20 +253,42 @@ router
       const userId = req.user.userId;
       const user = await User.findById(userId);
       const feed = [];
-      if (user.posts.length > 0) feed.push(user.posts[0]);
+      if (user.posts.length > 0) {
+        feed.push(user.posts[0]);
+        if (user.posts.length > 1) {
+          for (let i = 1; i < user.posts.length; i++) {
+            const post = await Post.findById(user.posts[i]);
+            const postDate = new Date(post.updatedAt);
+            if (datesAreOnSameDay(postDate, new Date())) {
+              feed.push(post._id);
+            }
+          }
+        }
+      }
       if (user.following && user.following.length > 0) {
-        user.following.forEach((followingUserId) => {
-          (async () => {
-            let followingUser = await User.findById(followingUserId);
-            if (followingUser.posts.length > 0)
-              feed.push(followingUser.posts[0]);
-          })();
-        });
+        for (const followingUserId of user.following) {
+          let followingUser = await User.findById(followingUserId);
+          if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
+        }
       }
       user.feed = feed;
       await user.save();
       User.findById(user._id)
-        .populate("feed")
+        .populate({
+          path: "feed",
+          select: { __v: 0 },
+          populate: {
+            path: "author",
+            select: {
+              _id: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              profileImage: 1,
+              bannerImage: 1,
+            },
+          },
+        })
         .exec((error, user) => {
           if (error) {
             console.error(error);
@@ -285,6 +308,11 @@ router
       });
     }
   });
+
+const datesAreOnSameDay = (first, second) =>
+  first.getFullYear() === second.getFullYear() &&
+  first.getMonth() === second.getMonth() &&
+  first.getDate() === second.getDate();
 
 router.param("userId", async (req, res, next, userId) => {
   try {
