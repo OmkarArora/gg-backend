@@ -54,6 +54,10 @@ router.route("/login").post(async (req, res) => {
             select: {
               _id: 1,
               profileImage: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              bannerImage: 1,
             },
           },
         })
@@ -244,7 +248,9 @@ router
 
       // Update followers for followUserId
       const followedUser = await User.findById(unfollowUserId);
-      const followers = followedUser.followers.filter((item) => String(item) !== String(user._id));
+      const followers = followedUser.followers.filter(
+        (item) => String(item) !== String(user._id)
+      );
       followedUser.followers = followers;
       console.log(followedUser.followers);
       await followedUser.save();
