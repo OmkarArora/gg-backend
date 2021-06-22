@@ -182,6 +182,30 @@ router.route("/username").post(async (req, res) => {
   }
 });
 
+router.route("/search").post(async (req, res) => {
+  try {
+    const { searchQuery } = req.body;
+    if (searchQuery === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot search an empty string",
+        errorMessage: "Cannot search an empty string",
+      });
+    }
+    let regex = new RegExp(searchQuery, "i");
+    const searchResults = await User.find({
+      $and: [{ $or: [{ name: regex }, { username: regex }] }],
+    }).select({ password: 0, __v: 0 });
+    res.json({ success: true, searchResults });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      errorMessage: error.message,
+    });
+  }
+});
+
 router
   .use(authVerify)
   .route("/follow")
