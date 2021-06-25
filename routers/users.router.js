@@ -151,7 +151,21 @@ router.route("/username").post(async (req, res) => {
     const { username } = req.body;
     console.log({ username });
     User.findOne({ username })
-      .populate("posts")
+      .populate({
+        path: "posts",
+        select: { __v: 0 },
+        populate: {
+          path: "author",
+          select: {
+            _id: 1,
+            name: 1,
+            username: 1,
+            email: 1,
+            profileImage: 1,
+            bannerImage: 1,
+          },
+        },
+      })
       .exec((error, user) => {
         if (error) {
           console.error(error);
