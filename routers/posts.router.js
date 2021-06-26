@@ -47,38 +47,43 @@ router.route("/").post(async (req, res) => {
 
 router.param("postId", async (req, res, next, postId) => {
   try {
-    const post = await Post.findById(postId);
-    if (!post) {
-      return res.status(400).json({
-        success: false,
-        message: "Post not found",
-        errorMessage: "Post not found",
+    Post.findById(postId)
+      .populate({
+        path: "author",
+        select: { __v: 0, password: 0 },
+      })
+      .exec((error, post) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving post",
+            errorMessage: error.message,
+          });
+        }
+        if (post) {
+          post.__v = undefined;
+          req.post = post;
+          next();
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: "Post not found",
+            errorMessage: "Post not found",
+          });
+        }
       });
-    }
-    req.post = post;
-    next();
   } catch (error) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Error while retreiving the post" });
+    return res.status(400).json({
+      success: false,
+      message: "Error while retreiving the post",
+      errorMessage: "Error while retreiving the post",
+    });
   }
 });
 
 router
   .route("/:postId")
-  .get(async (req, res) => {
-    try {
-      const { post } = req;
-      post.__v = undefined;
-      res.json({ success: true, post });
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Error while retreiving post",
-        errorMessage: error.message,
-      });
-    }
-  })
   .delete(async (req, res) => {
     try {
       let { post } = req;

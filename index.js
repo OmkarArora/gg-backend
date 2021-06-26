@@ -20,6 +20,9 @@ app.use("/users", usersRouter);
 const postsRouter = require("./routers/posts.router");
 app.use("/posts", postsRouter);
 
+const postsDetailsRouter = require("./routers/posts.details.router");
+app.use("/post-details", postsDetailsRouter);
+
 app.get("/", (req, res) => {
   res.send("Connected to GG server");
 });
