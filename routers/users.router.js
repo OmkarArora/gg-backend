@@ -305,6 +305,11 @@ router
     }
   });
 
+const datesAreOnSameDay = (first, second) =>
+  first.getFullYear() === second.getFullYear() &&
+  first.getMonth() === second.getMonth() &&
+  first.getDate() === second.getDate();
+
 router
   .use(authVerify)
   .route("/feed")
@@ -369,14 +374,9 @@ router
     }
   });
 
-const datesAreOnSameDay = (first, second) =>
-  first.getFullYear() === second.getFullYear() &&
-  first.getMonth() === second.getMonth() &&
-  first.getDate() === second.getDate();
-
 router.param("userId", async (req, res, next, userId) => {
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select({ __v: 0, password: 0 });
     if (!user) {
       return res.status(400).json({
         success: false,
@@ -424,13 +424,46 @@ router
     }
   })
   .post(async (req, res) => {
-    const userUpdates = req.body;
-    let { user } = req;
-    user = extend(user, userUpdates);
-    user = await user.save();
-    user.__v = undefined;
-    user.password = undefined;
-    res.json({ success: true, user });
+    try {
+      const { userUpdates } = req.body;
+      let { user } = req;
+      user = extend(user, userUpdates);
+      user = await user.save();
+      User.findById(user._id)
+        .populate({
+          path: "posts",
+          populate: {
+            path: "author",
+            select: {
+              _id: 1,
+              profileImage: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              bannerImage: 1,
+            },
+          },
+        })
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving user",
+              errorMessage: error.message,
+            });
+          }
+          user.password = undefined;
+          user.__v = undefined;
+          return res.json({ success: true, user });
+        });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error while retreiving user",
+        errorMessage: error.message,
+      });
+    }
   })
   .delete(async (req, res) => {
     let { user } = req;
