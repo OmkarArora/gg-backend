@@ -249,10 +249,34 @@ router
           await followedUser.save();
         }
       }
-      user.__v = undefined;
-      user.password = undefined;
-
-      return res.json({ success: true, user });
+      User.findById(user._id)
+        .populate({
+          path: "posts",
+          populate: {
+            path: "author",
+            select: {
+              _id: 1,
+              profileImage: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              bannerImage: 1,
+            },
+          },
+        })
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving user",
+              errorMessage: error.message,
+            });
+          }
+          user.password = undefined;
+          user.__v = undefined;
+          return res.json({ success: true, user });
+        });
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -293,9 +317,34 @@ router
       console.log(followedUser.followers);
       await followedUser.save();
 
-      user.__v = undefined;
-      user.password = undefined;
-      return res.json({ success: true, user });
+      User.findById(user._id)
+        .populate({
+          path: "posts",
+          populate: {
+            path: "author",
+            select: {
+              _id: 1,
+              profileImage: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              bannerImage: 1,
+            },
+          },
+        })
+        .exec((error, user) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({
+              success: false,
+              message: "Error while retreiving user",
+              errorMessage: error.message,
+            });
+          }
+          user.password = undefined;
+          user.__v = undefined;
+          return res.json({ success: true, user });
+        });
     } catch (error) {
       res.status(500).json({
         success: false,

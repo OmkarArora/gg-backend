@@ -45,6 +45,93 @@ router.route("/").post(async (req, res) => {
   }
 });
 
+router.route("/like").post(async (req, res) => {
+  try {
+    const { postId } = req.body;
+    const userId = req.user.userId;
+    const post = await Post.findById(postId);
+    const likes = post.likes.map((item) => String(item));
+
+    if (likes.length >= 0 && !likes.includes(userId)) {
+      likes.push(userId);
+      post.likes = likes;
+      await post.save();
+    }
+    Post.findById(post._id)
+      .populate({
+        path: "author",
+        select: {
+          _id: 1,
+          profileImage: 1,
+          name: 1,
+          username: 1,
+          email: 1,
+          bannerImage: 1,
+        },
+      })
+      .exec((error, post) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving post",
+            errorMessage: error.message,
+          });
+        }
+        post.__v = undefined;
+        return res.json({ success: true, post });
+      });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      errorMessage: error.message,
+    });
+  }
+});
+
+router.route("/unlike").post(async (req, res) => {
+  try {
+    const { postId } = req.body;
+    const userId = req.user.userId;
+    const post = await Post.findById(postId);
+    const likes = post.likes.filter((item) => String(item) !== userId);
+    post.likes = likes;
+    await post.save();
+    
+    Post.findById(post._id)
+      .populate({
+        path: "author",
+        select: {
+          _id: 1,
+          profileImage: 1,
+          name: 1,
+          username: 1,
+          email: 1,
+          bannerImage: 1,
+        },
+      })
+      .exec((error, post) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({
+            success: false,
+            message: "Error while retreiving post",
+            errorMessage: error.message,
+          });
+        }
+        post.__v = undefined;
+        return res.json({ success: true, post });
+      });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      errorMessage: error.message,
+    });
+  }
+});
+
 router.param("postId", async (req, res, next, postId) => {
   try {
     Post.findById(postId)
@@ -82,26 +169,24 @@ router.param("postId", async (req, res, next, postId) => {
   }
 });
 
-router
-  .route("/:postId")
-  .delete(async (req, res) => {
-    try {
-      let { post } = req;
-      post = await post.remove();
-      post.__v = undefined;
-      res.json({
-        success: true,
-        message: "Post deleted successfully",
-        post,
-        deleted: true,
-      });
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Error while deleting post",
-        errorMessage: error.message,
-      });
-    }
-  });
+router.route("/:postId").delete(async (req, res) => {
+  try {
+    let { post } = req;
+    post = await post.remove();
+    post.__v = undefined;
+    res.json({
+      success: true,
+      message: "Post deleted successfully",
+      post,
+      deleted: true,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Error while deleting post",
+      errorMessage: error.message,
+    });
+  }
+});
 
 module.exports = router;
