@@ -61,6 +61,20 @@ router.route("/login").post(async (req, res) => {
             },
           },
         })
+        .populate({
+          path: "notifications",
+          populate: {
+            path: "user",
+            select: {
+              _id: 1,
+              name: 1,
+              username: 1,
+              email: 1,
+              profileImage: 1,
+              bannerImage: 1,
+            },
+          },
+        })
         .exec((error, user) => {
           if (error) {
             console.error(error);
@@ -166,6 +180,20 @@ router.route("/username").post(async (req, res) => {
           },
         },
       })
+      .populate({
+        path: "notifications",
+        populate: {
+          path: "user",
+          select: {
+            _id: 1,
+            name: 1,
+            username: 1,
+            email: 1,
+            profileImage: 1,
+            bannerImage: 1,
+          },
+        },
+      })
       .exec((error, user) => {
         if (error) {
           console.error(error);
@@ -246,6 +274,11 @@ router
         const followedUser = await User.findById(followUserId);
         if (!followedUser.followers.includes(user._id)) {
           followedUser.followers = [...followedUser.followers, user._id];
+          let notification = { notificationType: "follow", user: user._id };
+          followedUser.notifications = [
+            notification,
+            ...followedUser.notifications,
+          ];
           await followedUser.save();
         }
       }
