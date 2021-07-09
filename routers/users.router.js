@@ -138,7 +138,7 @@ router.route("/signup").post(async (req, res) => {
     const savedUser = await NewUser.save();
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: savedUser._id, email: savedUser.email },
       process.env.JWT_SECRET
     );
 
@@ -163,7 +163,6 @@ router.route("/signup").post(async (req, res) => {
 router.route("/username").post(async (req, res) => {
   try {
     const { username } = req.body;
-    console.log({ username });
     User.findOne({ username })
       .populate({
         path: "posts",
@@ -400,7 +399,7 @@ router
       const userId = req.user.userId;
       const user = await User.findById(userId);
       const feed = [];
-      if (user.posts.length > 0) {
+      if (user && user.posts && user.posts.length > 0) {
         feed.push(user.posts[0]);
         if (user.posts.length > 1) {
           for (let i = 1; i < user.posts.length; i++) {
@@ -412,14 +411,16 @@ router
           }
         }
       }
-      if (user.following && user.following.length > 0) {
+      if (user && user.following && user.following.length > 0) {
         for (const followingUserId of user.following) {
           let followingUser = await User.findById(followingUserId);
           if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
         }
       }
-      user.feed = feed;
-      await user.save();
+      if(user){
+        user.feed = feed;
+        await user.save();
+      }
       User.findById(user._id)
         .populate({
           path: "feed",
