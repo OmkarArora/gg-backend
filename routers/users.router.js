@@ -8,6 +8,10 @@ const { extend } = require("lodash");
 const { User } = require("../models/user.model");
 const { authVerify } = require("../middleware/authVerify");
 const { Post } = require("../models/post.model");
+const {
+  getPopulatedUserFromId,
+  getPopulatedUserFromUsername,
+} = require("../controller/user.controller");
 
 router.route("/").get(async (req, res) => {
   try {
@@ -34,9 +38,7 @@ router.route("/login").post(async (req, res) => {
         errorMessage: "Email not found",
       });
     }
-
     const validPassword = await bcrypt.compare(password, user.password);
-
     if (validPassword) {
       const token = jwt.sign(
         {
@@ -45,49 +47,8 @@ router.route("/login").post(async (req, res) => {
         },
         process.env.JWT_SECRET
       );
-
-      User.findById(user._id)
-        .populate({
-          path: "posts",
-          populate: {
-            path: "author",
-            select: {
-              _id: 1,
-              profileImage: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .populate({
-          path: "notifications",
-          populate: {
-            path: "user",
-            select: {
-              _id: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              profileImage: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .exec((error, user) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({
-              success: false,
-              message: "Error while retreiving user",
-              errorMessage: error.message,
-            });
-          }
-          user.password = undefined;
-          user.__v = undefined;
-          return res.json({ success: true, user, token });
-        });
+      const populatedUser = await getPopulatedUserFromId(user._id, res);
+      return res.json({ success: true, user: populatedUser, token });
     } else {
       res.status(401).json({
         success: false,
@@ -163,57 +124,8 @@ router.route("/signup").post(async (req, res) => {
 router.route("/username").post(async (req, res) => {
   try {
     const { username } = req.body;
-    User.findOne({ username })
-      .populate({
-        path: "posts",
-        select: { __v: 0 },
-        populate: {
-          path: "author",
-          select: {
-            _id: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            profileImage: 1,
-            bannerImage: 1,
-          },
-        },
-      })
-      .populate({
-        path: "notifications",
-        populate: {
-          path: "user",
-          select: {
-            _id: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            profileImage: 1,
-            bannerImage: 1,
-          },
-        },
-      })
-      .exec((error, user) => {
-        if (error) {
-          console.error(error);
-          return res.status(500).json({
-            success: false,
-            message: "Error while retreiving user",
-            errorMessage: error.message,
-          });
-        }
-        if (user) {
-          user.__v = undefined;
-          user.password = undefined;
-          return res.json({ success: true, user });
-        } else {
-          res.status(404).json({
-            success: false,
-            message: "User not found",
-            errorMessage: "User not found",
-          });
-        }
-      });
+    const user = await getPopulatedUserFromUsername(username, res);
+    return res.json({ success: true, user });
   } catch (error) {
     return res.status(404).json({
       success: false,
@@ -247,215 +159,131 @@ router.route("/search").post(async (req, res) => {
   }
 });
 
-router
-  .use(authVerify)
-  .route("/follow")
-  .post(async (req, res) => {
-    try {
-      const { userId: followUserId } = req.body;
-      const doesUserExist = await User.exists({ _id: followUserId });
-      if (!doesUserExist) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-          errorMessage: "User not found",
-        });
-      }
-      const userId = req.user.userId;
-      const user = await User.findById(userId);
-      const following = user.following.map((item) => String(item));
-      if (following.length >= 0 && !following.includes(followUserId)) {
-        following.push(followUserId);
-        user.following = following;
-        await user.save();
+router.use(authVerify);
 
-        // Update followers for followUserId
-        const followedUser = await User.findById(followUserId);
-        if (!followedUser.followers.includes(user._id)) {
-          followedUser.followers = [...followedUser.followers, user._id];
-          let notification = { notificationType: "follow", user: user._id };
-          followedUser.notifications = [
-            notification,
-            ...followedUser.notifications,
-          ];
-          await followedUser.save();
-        }
-      }
-      User.findById(user._id)
-        .populate({
-          path: "posts",
-          populate: {
-            path: "author",
-            select: {
-              _id: 1,
-              profileImage: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .exec((error, user) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({
-              success: false,
-              message: "Error while retreiving user",
-              errorMessage: error.message,
-            });
-          }
-          user.password = undefined;
-          user.__v = undefined;
-          return res.json({ success: true, user });
-        });
-    } catch (error) {
-      res.status(500).json({
+router.route("/follow").post(async (req, res) => {
+  try {
+    const { userId: followUserId } = req.body;
+    const doesUserExist = await User.exists({ _id: followUserId });
+    if (!doesUserExist) {
+      return res.status(404).json({
         success: false,
-        message: "Something went wrong",
-        errorMessage: error.message,
+        message: "User not found",
+        errorMessage: "User not found",
       });
     }
-  });
-
-router
-  .use(authVerify)
-  .route("/unfollow")
-  .post(async (req, res) => {
-    try {
-      const { userId: unfollowUserId } = req.body;
-      const doesUserExist = await User.exists({ _id: unfollowUserId });
-      if (!doesUserExist) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-          errorMessage: "User not found",
-        });
-      }
-      const userId = req.user.userId;
-      const user = await User.findById(userId);
-      const following = user.following.filter(
-        (item) => String(item) !== unfollowUserId
-      );
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    const following = user.following.map((item) => String(item));
+    if (following.length >= 0 && !following.includes(followUserId)) {
+      following.push(followUserId);
       user.following = following;
       await user.save();
 
       // Update followers for followUserId
-      const followedUser = await User.findById(unfollowUserId);
-      const followers = followedUser.followers.filter(
-        (item) => String(item) !== String(user._id)
-      );
-      followedUser.followers = followers;
-      console.log(followedUser.followers);
-      await followedUser.save();
+      const followedUser = await User.findById(followUserId);
+      if (!followedUser.followers.includes(user._id)) {
+        followedUser.followers = [...followedUser.followers, user._id];
+        let notification = { notificationType: "follow", user: user._id };
+        followedUser.notifications = [
+          notification,
+          ...followedUser.notifications,
+        ];
+        await followedUser.save();
+      }
+    }
+    const populatedUser = await getPopulatedUserFromId(user._id);
+    return res.json({ success: true, user: populatedUser });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      errorMessage: error.message,
+    });
+  }
+});
 
-      User.findById(user._id)
-        .populate({
-          path: "posts",
-          populate: {
-            path: "author",
-            select: {
-              _id: 1,
-              profileImage: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .exec((error, user) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({
-              success: false,
-              message: "Error while retreiving user",
-              errorMessage: error.message,
-            });
-          }
-          user.password = undefined;
-          user.__v = undefined;
-          return res.json({ success: true, user });
-        });
-    } catch (error) {
-      res.status(500).json({
+router.route("/unfollow").post(async (req, res) => {
+  try {
+    const { userId: unfollowUserId } = req.body;
+    const doesUserExist = await User.exists({ _id: unfollowUserId });
+    if (!doesUserExist) {
+      return res.status(404).json({
         success: false,
-        message: "Something went wrong",
-        errorMessage: error.message,
+        message: "User not found",
+        errorMessage: "User not found",
       });
     }
-  });
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    const following = user.following.filter(
+      (item) => String(item) !== unfollowUserId
+    );
+    user.following = following;
+    await user.save();
+
+    // Update followers for followUserId
+    const followedUser = await User.findById(unfollowUserId);
+    const followers = followedUser.followers.filter(
+      (item) => String(item) !== String(user._id)
+    );
+    followedUser.followers = followers;
+    console.log(followedUser.followers);
+    await followedUser.save();
+
+    const populatedUser = await getPopulatedUserFromId(user._id);
+    return res.json({ success: true, user: populatedUser });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      errorMessage: error.message,
+    });
+  }
+});
 
 const datesAreOnSameDay = (first, second) =>
   first.getFullYear() === second.getFullYear() &&
   first.getMonth() === second.getMonth() &&
   first.getDate() === second.getDate();
 
-router
-  .use(authVerify)
-  .route("/feed")
-  .get(async (req, res) => {
-    try {
-      const userId = req.user.userId;
-      const user = await User.findById(userId);
-      const feed = [];
-      if (user && user.posts && user.posts.length > 0) {
-        feed.push(user.posts[0]);
-        if (user.posts.length > 1) {
-          for (let i = 1; i < user.posts.length; i++) {
-            const post = await Post.findById(user.posts[i]);
-            const postDate = new Date(post.createdAt);
-            if (datesAreOnSameDay(postDate, new Date())) {
-              feed.push(post._id);
-            }
+router.route("/feed").get(async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    const feed = [];
+    if (user && user.posts && user.posts.length > 0) {
+      feed.push(user.posts[0]);
+      if (user.posts.length > 1) {
+        for (let i = 1; i < user.posts.length; i++) {
+          const post = await Post.findById(user.posts[i]);
+          const postDate = new Date(post.createdAt);
+          if (datesAreOnSameDay(postDate, new Date())) {
+            feed.push(post._id);
           }
         }
       }
-      if (user && user.following && user.following.length > 0) {
-        for (const followingUserId of user.following) {
-          let followingUser = await User.findById(followingUserId);
-          if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
-        }
-      }
-      if(user){
-        user.feed = feed;
-        await user.save();
-      }
-      User.findById(user._id)
-        .populate({
-          path: "feed",
-          select: { __v: 0 },
-          populate: {
-            path: "author",
-            select: {
-              _id: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              profileImage: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .exec((error, user) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({
-              success: false,
-              message: "Error while retreiving feed",
-              errorMessage: error.message,
-            });
-          }
-          return res.json({ success: true, feed: user.feed });
-        });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: "Error while retreiving feed",
-        errorMessage: error.message,
-      });
     }
-  });
+    if (user && user.following && user.following.length > 0) {
+      for (const followingUserId of user.following) {
+        let followingUser = await User.findById(followingUserId);
+        if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
+      }
+    }
+    if (user) {
+      user.feed = feed;
+      await user.save();
+    }
+    const populatedUser = await getPopulatedUserFromId(user._id);
+    return res.json({ success: true, feed: populatedUser.feed });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error while retreiving feed",
+      errorMessage: error.message,
+    });
+  }
+});
 
 router.param("userId", async (req, res, next, userId) => {
   try {
@@ -512,34 +340,8 @@ router
       let { user } = req;
       user = extend(user, userUpdates);
       user = await user.save();
-      User.findById(user._id)
-        .populate({
-          path: "posts",
-          populate: {
-            path: "author",
-            select: {
-              _id: 1,
-              profileImage: 1,
-              name: 1,
-              username: 1,
-              email: 1,
-              bannerImage: 1,
-            },
-          },
-        })
-        .exec((error, user) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({
-              success: false,
-              message: "Error while retreiving user",
-              errorMessage: error.message,
-            });
-          }
-          user.password = undefined;
-          user.__v = undefined;
-          return res.json({ success: true, user });
-        });
+      const populatedUser = await getPopulatedUserFromId(user._id);
+      return res.json({ success: true, user: populatedUser });
     } catch (error) {
       return res.status(500).json({
         success: false,
