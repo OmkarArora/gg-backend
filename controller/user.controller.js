@@ -1,5 +1,14 @@
 const { User } = require("../models/user.model");
 
+const userPopulationFields = {
+  _id: 1,
+  profileImage: 1,
+  name: 1,
+  username: 1,
+  email: 1,
+  bannerImage: 1,
+};
+
 const getPopulatedUserFromId = async (userId, res) => {
   try {
     const user = await User.findById(userId)
@@ -8,12 +17,7 @@ const getPopulatedUserFromId = async (userId, res) => {
         populate: {
           path: "author",
           select: {
-            _id: 1,
-            profileImage: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            bannerImage: 1,
+            ...userPopulationFields,
           },
         },
       })
@@ -23,12 +27,7 @@ const getPopulatedUserFromId = async (userId, res) => {
         populate: {
           path: "author",
           select: {
-            _id: 1,
-            profileImage: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            bannerImage: 1,
+            ...userPopulationFields,
           },
         },
       })
@@ -37,12 +36,7 @@ const getPopulatedUserFromId = async (userId, res) => {
         populate: {
           path: "user",
           select: {
-            _id: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            profileImage: 1,
-            bannerImage: 1,
+            ...userPopulationFields,
           },
         },
       });
@@ -66,14 +60,7 @@ const getPopulatedUserFromUsername = async (username, res) => {
         path: "posts",
         populate: {
           path: "author",
-          select: {
-            _id: 1,
-            profileImage: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            bannerImage: 1,
-          },
+          select: { ...userPopulationFields },
         },
       })
       .populate({
@@ -82,12 +69,7 @@ const getPopulatedUserFromUsername = async (username, res) => {
         populate: {
           path: "author",
           select: {
-            _id: 1,
-            profileImage: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            bannerImage: 1,
+            ...userPopulationFields,
           },
         },
       })
@@ -96,12 +78,7 @@ const getPopulatedUserFromUsername = async (username, res) => {
         populate: {
           path: "user",
           select: {
-            _id: 1,
-            name: 1,
-            username: 1,
-            email: 1,
-            profileImage: 1,
-            bannerImage: 1,
+            ...userPopulationFields,
           },
         },
       });
