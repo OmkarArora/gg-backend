@@ -257,9 +257,11 @@ router.route("/feed").get(async (req, res) => {
       if (user.posts.length > 1) {
         for (let i = 1; i < user.posts.length; i++) {
           const post = await Post.findById(user.posts[i]);
-          const postDate = new Date(post.createdAt);
-          if (datesAreOnSameDay(postDate, new Date())) {
-            feed.push(post._id);
+          if (post) {
+            const postDate = new Date(post.createdAt);
+            if (datesAreOnSameDay(postDate, new Date())) {
+              feed.push(post._id);
+            }
           }
         }
       }
