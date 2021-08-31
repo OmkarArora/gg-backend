@@ -9,6 +9,32 @@ const userPopulationFields = {
   bannerImage: 1,
 };
 
+const populateUserFeed = async (userId, res) => {
+  try {
+    const user = await User.findById(userId)
+      .populate({
+        path: "feed",
+        select: { __v: 0 },
+        populate: {
+          path: "author",
+          select: {
+            ...userPopulationFields,
+          },
+        },
+      });
+    user.__v = undefined;
+    user.password = undefined;
+    return user;
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Error while retreiving user",
+      errorMessage: error.message,
+    });
+  }
+};
+
 const getPopulatedUserFromId = async (userId, res) => {
   try {
     const user = await User.findById(userId)
@@ -95,4 +121,4 @@ const getPopulatedUserFromUsername = async (username, res) => {
   }
 };
 
-module.exports = { getPopulatedUserFromId, getPopulatedUserFromUsername };
+module.exports = { getPopulatedUserFromId, getPopulatedUserFromUsername, populateUserFeed };

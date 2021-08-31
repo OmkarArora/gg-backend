@@ -11,6 +11,7 @@ const { Post } = require("../models/post.model");
 const {
   getPopulatedUserFromId,
   getPopulatedUserFromUsername,
+  populateUserFeed,
 } = require("../controller/user.controller");
 
 router.route("/").get(async (req, res) => {
@@ -268,7 +269,7 @@ router.route("/feed").get(async (req, res) => {
     }
     if (user && user.following && user.following.length > 0) {
       for (const followingUserId of user.following) {
-        let followingUser = await User.findById(followingUserId);
+        let followingUser = await User.findById(followingUserId).lean();
         if (followingUser.posts.length > 0) feed.push(followingUser.posts[0]);
       }
     }
@@ -276,7 +277,7 @@ router.route("/feed").get(async (req, res) => {
       user.feed = feed;
       await user.save();
     }
-    const populatedUser = await getPopulatedUserFromId(user._id);
+    const populatedUser = await populateUserFeed(user._id);
     return res.json({ success: true, feed: populatedUser.feed });
   } catch (error) {
     return res.status(500).json({
